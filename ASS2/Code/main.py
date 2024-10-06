@@ -3,6 +3,8 @@ import os
 import cv2
 import random
 import matplotlib.pyplot as plt
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
 
 def seed_setup(ran_seed=42):
     random.seed(ran_seed)
@@ -62,7 +64,6 @@ def function_kapur(picture, thresholds):
     
     return final_entropy
 
-# Simulated Annealing (SA)
 def simulated_annealing(picture, objective_function, initial_thresholds, max_iteration=1000,ran_seed=42):
     seed_setup(ran_seed)
     threshold_now = initial_thresholds.copy()
@@ -90,7 +91,7 @@ def simulated_annealing(picture, objective_function, initial_thresholds, max_ite
     
     return score_best, threshold_best
 
-#Variable Neighbourhood Search (VNS)
+
 def variable_neighbourhood_search(picture, objective_function, initial_thresholds, max_iteration=1000,ran_seed=42):
     seed_setup(ran_seed)
     threshold_now = initial_thresholds.copy()
@@ -201,21 +202,51 @@ def individual_image(pic_path, final_folder='Code/output_images',ran_seed=42):
     cv2.imwrite(os.path.join(final_folder, f"{base_name}_vns_otsu.png"), vns_otsu_segmented)
     cv2.imwrite(os.path.join(final_folder, f"{base_name}_sa_kapur.png"), sa_kapur_segmented)
     cv2.imwrite(os.path.join(final_folder, f"{base_name}_vns_kapur.png"), vns_kapur_segmented)
+    
+    ssim_sa_otsu = ssim(picture, sa_otsu_segmented, data_range=picture.max() - picture.min())
+    psnr_sa_otsu = psnr(picture, sa_otsu_segmented, data_range=picture.max() - picture.min())
+
+    ssim_vns_otsu = ssim(picture, vns_otsu_segmented, data_range=picture.max() - picture.min())
+    psnr_vns_otsu = psnr(picture, vns_otsu_segmented, data_range=picture.max() - picture.min())
+
 
     show_segmented_images(picture, sa_otsu_segmented, vns_otsu_segmented, sa_kapur_segmented, vns_kapur_segmented)
 
-    return sa_otsu_thresholds, vns_otsu_thresholds, sa_kapur_thresholds, vns_kapur_thresholds
+    return {
+        'sa_otsu': (sa_otsu_thresholds, ssim_sa_otsu, psnr_sa_otsu),
+        'vns_otsu': (vns_otsu_thresholds, ssim_vns_otsu, psnr_vns_otsu),
+        'sa_kapur': (sa_kapur_thresholds,), 
+        'vns_kapur': (vns_kapur_thresholds,),  
+    }
+
 
 
 def go_all_folder(pics_folder, final_folder='Code/output_images',ran_seed=42):
     os.makedirs(final_folder, exist_ok=True)
     seed_setup(ran_seed)
+    results = {}  
+
     for picture_name in os.listdir(pics_folder):
         if picture_name.endswith((".png", ".jpg", ".jpeg")):
             pic_path = os.path.join(pics_folder, picture_name)
+            results[picture_name] = individual_image(pic_path)
 
-            individual_image(pic_path)
+ 
+    print("Image\tLevel\tOtsu (SA/VNS)\t\tKapur (SA/VNS)\t\tSSIM (SA/VNS)\t\tPSNR (SA/VNS)")
+    print("-" * 100)  
 
-# Example usage
+    for image_name, image_data in results.items():
+        for level in range(2, 6): 
+            print(f"{image_name}\t{level}\t", end="")
+
+            
+            print(f"{image_data['sa_otsu'][0][level-2]:.2f}/{image_data['vns_otsu'][0][level-2]:.2f}\t\t", end="")
+            print(f"{image_data['sa_kapur'][0][level-2]:.2f}/{image_data['vns_kapur'][0][level-2]:.2f}\t\t", end="")
+        
+            print(f"{image_data['sa_otsu'][1]:.4f}/{image_data['vns_otsu'][1]:.4f}\t\t", end="")
+            print(f"{image_data['sa_otsu'][2]:.4f}/{image_data['vns_otsu'][2]:.4f}") 
+
+        print()  
+
 folder_path = 'Code/Ass2'
 go_all_folder(folder_path)
